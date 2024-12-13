@@ -16,10 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Set dark theme
-st.set_option('theme.base', 'dark')
-
-# Custom CSS for enhanced styling
+# Custom CSS for dark theme
 st.markdown("""
 <style>
     /* Dark theme specific styles */
@@ -50,40 +47,6 @@ st.markdown("""
     }
     .explanation-text {
         color: #aaaaaa;
-    }
-    .reportview-container {
-        background: linear-gradient(to right, #f0f2f6, #e6e9ef);
-    }
-    .sidebar .sidebar-content {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(10px);
-    }
-    .tooltip {
-        position: relative;
-        display: inline-block;
-        border-bottom: 1px dotted black;
-        cursor: help;
-        margin-bottom: 50px;
-    }
-    .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 250px;
-        background-color: #555;
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 10px;
-        position: absolute;
-        z-index: 1;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -125px;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-    .tooltip:hover .tooltiptext {
-        visibility: visible;
-        opacity: 1;
     }
 </style>
 """, unsafe_allow_html=True)
