@@ -16,37 +16,54 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for dark theme
+# Custom CSS for enhanced styling
 st.markdown("""
 <style>
-    /* Dark theme specific styles */
-    .stApp {
-        background-color: #0e1117;
-        color: #ffffff;
+    .reportview-container {
+        background: linear-gradient(to right, #f0f2f6, #e6e9ef);
     }
-    .stSidebar {
-        background-color: #1c2333;
-    }
-    .stTextInput>div>div>input {
-        color: #ffffff;
-        background-color: #262730;
-    }
-    .stButton>button {
-        color: #ffffff;
-        background-color: #4a4a4a;
-    }
-    .stSelectbox>div>div>select {
-        color: #ffffff;
-        background-color: #262730;
+    .sidebar .sidebar-content {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(10px);
     }
     .metric-container {
-        background-color: #262730;
+        background-color: white;
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        color: #ffffff;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+        margin-bottom: 15px;
     }
     .explanation-text {
-        color: #aaaaaa;
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 5px;
+    }
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted black;
+        cursor: help;
+        margin-bottom: 50px;
+    }
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 250px;
+        background-color: #555;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -125px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
     }
 </style>
 """, unsafe_allow_html=True)
