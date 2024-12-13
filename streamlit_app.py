@@ -5,13 +5,8 @@ import plotly.graph_objs as go
 import plotly.express as px
 
 # Import our custom models and accuracy tools
-from . import (
-    BlackScholesOption, 
-    AdvancedOptionPricing, 
-    BinomialTreeOption, 
-    calculate_model_accuracy, 
-    visualize_pricing_accuracy
-)
+from models import BlackScholesOption, AdvancedOptionPricing, BinomialTreeOption
+from model_accuracy import calculate_model_accuracy, visualize_pricing_accuracy
 
 # Set page configuration
 st.set_page_config(
