@@ -138,6 +138,7 @@ p = (e^(r*Δt) - d) / (u - d)
 ## Overview
 
 This interactive Streamlit application provides comprehensive option pricing tools using various mathematical models and techniques, including:
+
 - Black-Scholes Option Pricing Model
 - Binomial Tree Option Pricing Model
 - Advanced Option Pricing Techniques
@@ -150,18 +151,21 @@ This interactive Streamlit application provides comprehensive option pricing too
 ## Setup and Installation
 
 1. Clone the repository:
+
 ```bash
-git clone https://github.com/yourusername/option-pricing-model.git
+git clone https://github.com/Kohnnn/option-pricing-model.git
 cd option-pricing-model
 ```
 
 2. Create a virtual environment (optional but recommended):
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 ```
 
 3. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -169,6 +173,7 @@ pip install -r requirements.txt
 ## Running the Application
 
 To launch the Streamlit application:
+
 ```bash
 streamlit run streamlit_app.py
 ```
@@ -184,9 +189,11 @@ streamlit run streamlit_app.py
 ## Mathematical Models
 
 ### 1. Black-Scholes Option Pricing Model
+
 Calculates theoretical prices for European-style options.
 
 ### 2. Binomial Tree Option Pricing Model
+
 Provides a more flexible approach to option pricing by discretizing time.
 
 ## Contributing
@@ -204,6 +211,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Deployment Instructions
 
 #### Local Development
+
 1. Ensure you have Python 3.9-3.12 installed
 2. Create a virtual environment:
    ```
@@ -224,11 +232,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
    ```
 
 #### Streamlit Deployment
+
 1. Ensure you have a `requirements.txt` file with all dependencies
 2. Set the main file as `streamlit_app.py`
 3. Use Python 3.9-3.12 for compatibility
 
 ### Troubleshooting
+
 - If you encounter `ModuleNotFoundError: No module named 'distutils'`:
   * Ensure you're using Python 3.9-3.12
   * Upgrade pip, setuptools, and wheel
@@ -278,8 +288,7 @@ price = calculate_option_price(
 
 ### Web Interface
 
-1. Select Pricing Model (Black-Scholes or Binomial Tree)
-2. Choose Option Type (Call or Put)
+1. Choose Option Type (Call or Put)
 3. Enter Option Parameters
 4. Click "Calculate Option Price"
 
@@ -289,6 +298,8 @@ price = calculate_option_price(
 
 - Implied Volatility Calculation
 - Scenario Analysis
+- Models Comparison
+- Tooltips for Clarity
 - Greeks Calculation (Delta, Gamma, Vega, Theta)
 
 ## License
@@ -297,5 +308,6 @@ MIT License
 
 ## WIP
 
-* Fomula accuracy
+* Fomula Accuracy
+* More Robust Calculation
 * Pricing for other assets classes
