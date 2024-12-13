@@ -201,6 +201,40 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 [Your contact information]
 
+## Deployment Instructions
+
+#### Local Development
+1. Ensure you have Python 3.9-3.12 installed
+2. Create a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   ```
+3. Upgrade pip and setuptools:
+   ```
+   pip install --upgrade pip setuptools wheel
+   ```
+4. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+5. Run the Streamlit app:
+   ```
+   streamlit run streamlit_app.py
+   ```
+
+#### Streamlit Deployment
+1. Ensure you have a `requirements.txt` file with all dependencies
+2. Set the main file as `streamlit_app.py`
+3. Use Python 3.9-3.12 for compatibility
+
+### Troubleshooting
+- If you encounter `ModuleNotFoundError: No module named 'distutils'`:
+  * Ensure you're using Python 3.9-3.12
+  * Upgrade pip, setuptools, and wheel
+  * Use the latest versions of dependencies
+- Consider using `numpy>=1.26.0` and other flexible version constraints
+
 ## Installation
 
 ```bash
