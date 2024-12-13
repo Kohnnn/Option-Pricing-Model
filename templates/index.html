@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Option Pricing Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #results {
+            margin-top: 20px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Option Pricing Calculator</h1>
+        <form id="optionForm">
+            <label>Pricing Model:</label>
+            <select id="pricingModel" name="pricing_model">
+                <option value="black_scholes">Black-Scholes</option>
+                <option value="binomial_tree">Binomial Tree</option>
+            </select>
+
+            <label>Option Type:</label>
+            <select id="optionType" name="option_type">
+                <option value="call">Call Option</option>
+                <option value="put">Put Option</option>
+            </select>
+
+            <label>Spot Price:</label>
+            <input type="number" id="spotPrice" name="spot_price" step="0.01" required>
+
+            <label>Strike Price:</label>
+            <input type="number" id="strikePrice" name="strike_price" step="0.01" required>
+
+            <label>Risk-Free Rate (%):</label>
+            <input type="number" id="riskFreeRate" name="risk_free_rate" step="0.001" required>
+
+            <label>Volatility (%):</label>
+            <input type="number" id="volatility" name="volatility" step="0.001" required>
+
+            <label>Time to Expiry (Years):</label>
+            <input type="number" id="timeToExpiry" name="time_to_expiry" step="0.01" required>
+
+            <button type="submit">Calculate Option Price</button>
+        </form>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('optionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                pricing_model: document.getElementById('pricingModel').value,
+                option_type: document.getElementById('optionType').value,
+                spot_price: parseFloat(document.getElementById('spotPrice').value),
+                strike_price: parseFloat(document.getElementById('strikePrice').value),
+                risk_free_rate: parseFloat(document.getElementById('riskFreeRate').value) / 100,
+                volatility: parseFloat(document.getElementById('volatility').value) / 100,
+                time_to_expiry: parseFloat(document.getElementById('timeToExpiry').value)
+            };
+
+            fetch('/calculate_option', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('results').innerHTML = `Error: ${data.error}`;
+                } else {
+                    let resultsHTML = `
+                        <h2>Option Pricing Results</h2>
+                        <p><strong>Option Price:</strong> $${data.option_price.toFixed(2)}</p>
+                    `;
+
+                    if (Object.keys(data.greeks).length > 0) {
+                        resultsHTML += `
+                            <h3>Option Greeks</h3>
+                            <ul>
+                                <li><strong>Delta:</strong> ${data.greeks.delta.toFixed(4)}</li>
+                                <li><strong>Gamma:</strong> ${data.greeks.gamma.toFixed(4)}</li>
+                                <li><strong>Vega:</strong> ${data.greeks.vega.toFixed(4)}</li>
+                                <li><strong>Theta:</strong> ${data.greeks.theta.toFixed(4)}</li>
+                            </ul>
+                        `;
+                    }
+
+                    document.getElementById('results').innerHTML = resultsHTML;
+                }
+            })
+            .catch(error => {
+                document.getElementById('results').innerHTML = `Error: ${error}`;
+            });
+        });
+    </script>
+</body>
+</html>
