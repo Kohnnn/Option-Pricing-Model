@@ -283,7 +283,6 @@ def main():
         )
         st.plotly_chart(fig_diff, use_container_width=True)
         add_explanation("Percentage difference between models compared to Black-Scholes")
-
 def add_footer():
     st.markdown("---")
     st.markdown("""
@@ -295,7 +294,7 @@ def add_footer():
     """)
     st.sidebar.markdown("---")
     st.sidebar.info("""
-    **Created by:** [Kiet Vo](linkedin.com/in/kiet-vo-097)
+    **Created by:** [Kiet Vo](https://linkedin.com/in/kiet-vo-097)
 
     Disclaimer - This is my first take on quant and option pricing. 
     The model is far from having any real application. 
