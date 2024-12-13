@@ -16,27 +16,47 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Set dark theme
+st.set_option('theme.base', 'dark')
+
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>
+    /* Dark theme specific styles */
+    .stApp {
+        background-color: #0e1117;
+        color: #ffffff;
+    }
+    .stSidebar {
+        background-color: #1c2333;
+    }
+    .stTextInput>div>div>input {
+        color: #ffffff;
+        background-color: #262730;
+    }
+    .stButton>button {
+        color: #ffffff;
+        background-color: #4a4a4a;
+    }
+    .stSelectbox>div>div>select {
+        color: #ffffff;
+        background-color: #262730;
+    }
+    .metric-container {
+        background-color: #262730;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        color: #ffffff;
+    }
+    .explanation-text {
+        color: #aaaaaa;
+    }
     .reportview-container {
         background: linear-gradient(to right, #f0f2f6, #e6e9ef);
     }
     .sidebar .sidebar-content {
         background: rgba(255, 255, 255, 0.8);
         backdrop-filter: blur(10px);
-    }
-    .metric-container {
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        padding: 15px;
-        margin-bottom: 15px;
-    }
-    .explanation-text {
-        font-size: 0.8rem;
-        color: #666;
-        margin-top: 5px;
     }
     .tooltip {
         position: relative;
