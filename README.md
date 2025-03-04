@@ -200,14 +200,6 @@ Provides a more flexible approach to option pricing by discretizing time.
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
-
-[Specify your license here]
-
-## Contact
-
-[Your contact information]
-
 ## Deployment Instructions
 
 #### Local Development
