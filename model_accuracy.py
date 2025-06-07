@@ -1,137 +1,107 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from models import BlackScholesOption, AdvancedOptionPricing, BinomialTreeOption
+import time
+from models import BlackScholesOption
+from advanced_models import HestonModel, MertonJumpModel
 
-def calculate_model_accuracy(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type='call'):
+def run_validation_and_profiling():
     """
-    Compare accuracy of different option pricing models
-    
-    Args:
-        spot_price (float): Current stock price
-        strike_price (float): Option strike price
-        risk_free_rate (float): Risk-free interest rate
-        volatility (float): Stock price volatility
-        time_to_expiry (float): Time to option expiration
-        option_type (str): Option type 'call' or 'put'
-    
-    Returns:
-        pd.DataFrame: Comparison of different pricing models
+    Performs accuracy and performance validation for advanced option pricing models.
     """
-    # Initialize pricing models
-    black_scholes = BlackScholesOption(
-        spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type
-    )
-    advanced_option = AdvancedOptionPricing(
-        spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type
-    )
-    binomial_tree = BinomialTreeOption(
-        spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type=option_type
-    )
-    
-    # Calculate prices using different methods
-    pricing_methods = {
-        'Black-Scholes (Analytical)': black_scholes.price(),
-        'Monte Carlo (Basic)': advanced_option.monte_carlo_pricing(simulations=50000)['price'],
-        'Quasi-Monte Carlo': advanced_option.quasi_monte_carlo_pricing(simulations=50000),
-        'Binomial Tree': binomial_tree.price()
-    }
-    
-    # Calculate Greeks
-    greeks = advanced_option.calculate_greeks()
-    
-    # Prepare results DataFrame
-    results_df = pd.DataFrame.from_dict(pricing_methods, orient='index', columns=['Price'])
-    
-    # Calculate relative differences
-    base_price = results_df.loc['Black-Scholes (Analytical)', 'Price']
-    results_df['Absolute Difference'] = np.abs(results_df['Price'] - base_price)
-    results_df['Relative Difference (%)'] = np.abs((results_df['Price'] - base_price) / base_price * 100)
-    
-    # Add Greeks to the results
-    for greek, value in greeks.items():
-        results_df[f'{greek.capitalize()} Greek'] = value
-    
-    return results_df
-
-def visualize_pricing_accuracy(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type='call'):
-    """
-    Visualize the accuracy of different option pricing models
-    """
-    # Calculate accuracy metrics
-    accuracy_df = calculate_model_accuracy(
-        spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type
-    )
-    
-    # Plotting
-    plt.figure(figsize=(12, 6))
-    
-    # Pricing Comparison
-    plt.subplot(1, 2, 1)
-    accuracy_df['Price'].plot(kind='bar')
-    plt.title('Option Pricing Comparison')
-    plt.xlabel('Pricing Method')
-    plt.ylabel('Option Price')
-    plt.xticks(rotation=45, ha='right')
-    
-    # Relative Difference
-    plt.subplot(1, 2, 2)
-    accuracy_df['Relative Difference (%)'].plot(kind='bar')
-    plt.title('Relative Difference from Black-Scholes')
-    plt.xlabel('Pricing Method')
-    plt.ylabel('Relative Difference (%)')
-    plt.xticks(rotation=45, ha='right')
-    
-    plt.tight_layout()
-    plt.show()
-
-def run_comprehensive_analysis():
-    """
-    Run comprehensive option pricing model analysis
-    """
-    # Test scenarios
+    # Define test scenarios
     scenarios = [
         {
-            'name': 'At-the-Money Call',
-            'spot_price': 100,
-            'strike_price': 100,
-            'risk_free_rate': 0.05,
-            'volatility': 0.2,
-            'time_to_expiry': 1,
-            'option_type': 'call'
+            'name': 'At-the-Money',
+            'spot_price': 100, 'strike_price': 100, 'risk_free_rate': 0.05,
+            'volatility': 0.2, 'time_to_expiry': 1.0, 'option_type': 'call'
         },
         {
-            'name': 'Out-of-the-Money Put',
-            'spot_price': 100,
-            'strike_price': 110,
-            'risk_free_rate': 0.05,
-            'volatility': 0.3,
-            'time_to_expiry': 0.5,
-            'option_type': 'put'
+            'name': 'In-the-Money',
+            'spot_price': 110, 'strike_price': 100, 'risk_free_rate': 0.05,
+            'volatility': 0.25, 'time_to_expiry': 0.75, 'option_type': 'call'
         },
         {
-            'name': 'In-the-Money Call',
-            'spot_price': 120,
-            'strike_price': 100,
-            'risk_free_rate': 0.03,
-            'volatility': 0.25,
-            'time_to_expiry': 0.75,
-            'option_type': 'call'
+            'name': 'Out-of-the-Money',
+            'spot_price': 90, 'strike_price': 100, 'risk_free_rate': 0.05,
+            'volatility': 0.15, 'time_to_expiry': 0.5, 'option_type': 'put'
         }
     ]
-    
-    # Analyze each scenario
+
+    # --- Accuracy Validation for MertonJumpModel ---
+    accuracy_results = []
+    print("--- Merton Jump Model Accuracy Validation ---")
+    print("-" * 50)
+
     for scenario in scenarios:
-        print(f"\nAnalysis for {scenario['name']} Option:")
-        print("-" * 50)
-        
-        # Calculate accuracy
-        accuracy_df = calculate_model_accuracy(**{k: v for k, v in scenario.items() if k != 'name'})
-        print(accuracy_df)
-        
-        # Optional: Visualize results
-        # Uncomment the following line if you want to generate plots
-        # visualize_pricing_accuracy(**{k: v for k, v in scenario.items() if k != 'name'})
+        # Benchmark price from Black-Scholes
+        bs_model = BlackScholesOption(
+            scenario['spot_price'], scenario['strike_price'], scenario['risk_free_rate'],
+            scenario['volatility'], scenario['time_to_expiry'], scenario['option_type']
+        )
+        bs_price = bs_model.price()
+
+        # Merton Jump Model
+        merton_model = MertonJumpModel(
+            scenario['spot_price'], scenario['strike_price'], scenario['risk_free_rate'],
+            scenario['volatility'], scenario['time_to_expiry'],
+            lambda_jump=0.1, mu_jump=0.0, sigma_jump=0.1, option_type=scenario['option_type']
+        )
+        merton_price = merton_model.price()
+
+        accuracy_results.append({
+            'Scenario': scenario['name'],
+            'Merton Price': merton_price,
+            'Benchmark (BS) Price': bs_price,
+            'Difference': merton_price - bs_price
+        })
+
+    accuracy_df = pd.DataFrame(accuracy_results)
+    print(accuracy_df.to_string())
+    print("\n")
+
+
+    # --- Performance Profiling for Merton and Heston Models ---
+    performance_results = []
+    print("--- Model Performance Profiling ---")
+    print("-" * 50)
+
+    # Use a consistent scenario for performance testing
+    perf_scenario = scenarios[0]
+
+    # Profile MertonJumpModel
+    merton_model = MertonJumpModel(
+        perf_scenario['spot_price'], perf_scenario['strike_price'], perf_scenario['risk_free_rate'],
+        perf_scenario['volatility'], perf_scenario['time_to_expiry'],
+        lambda_jump=0.1, mu_jump=0.0, sigma_jump=0.1, option_type=perf_scenario['option_type']
+    )
+    start_time = time.time()
+    merton_model.price()
+    end_time = time.time()
+    performance_results.append({
+        'Model': 'MertonJumpModel',
+        'Execution Time (s)': end_time - start_time
+    })
+
+    # Profile HestonModel
+    heston_model = HestonModel(
+        perf_scenario['spot_price'], perf_scenario['strike_price'], perf_scenario['risk_free_rate'],
+        perf_scenario['volatility']**2, perf_scenario['time_to_expiry'],
+        kappa=2.0, theta=perf_scenario['volatility']**2, sigma=0.3, rho=-0.7,
+        option_type=perf_scenario['option_type']
+    )
+    start_time = time.time()
+    heston_model.price()
+    end_time = time.time()
+    performance_results.append({
+        'Model': 'HestonModel',
+        'Execution Time (s)': end_time - start_time
+    })
+
+    performance_df = pd.DataFrame(performance_results)
+    print(performance_df.to_string())
+
+    return accuracy_df, performance_df
+
 
 if __name__ == "__main__":
-    run_comprehensive_analysis()
+    run_validation_and_profiling()

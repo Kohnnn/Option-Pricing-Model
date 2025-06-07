@@ -3,10 +3,16 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 import plotly.express as px
+import json
 
 # Import our custom models and accuracy tools
 from models import BlackScholesOption, AdvancedOptionPricing, BinomialTreeOption
-from model_accuracy import calculate_model_accuracy, visualize_pricing_accuracy
+from advanced_models import HestonModel, MertonJumpModel
+from data_provider import FinancialDataAPI
+from volatility_engine import VolatilityEngine
+from portfolio import Portfolio
+from risk_management import ValueAtRisk, StressTester
+import datetime
 
 # Set page configuration
 st.set_page_config(
@@ -84,221 +90,238 @@ def add_explanation(text):
     """
     st.markdown(f'<div class="explanation-text">{text}</div>', unsafe_allow_html=True)
 
-def main():
-    st.title("📊 Option Pricing Model Dashboard")
-    st.markdown("""
-    Welcome to the Option Pricing Model! This tool helps you analyze and price financial options 
-    using various sophisticated mathematical models.
-    """)
-    
-    # Sidebar for input parameters
+def render_option_pricing_page(data_provider, volatility_engine):
+    st.header("Single Option Pricing")
+    st.markdown("This section allows you to price a single option using various models.")
+
+    model_explanations = {
+        "Black-Scholes": {
+            "methodology": "The Black-Scholes model provides a theoretical estimate of the price of European-style options.",
+            "formula": r"C(S, t) = S_0 N(d_1) - K e^{-rT} N(d_2)",
+            "use_cases": "Best for pricing European options on non-dividend-paying stocks."
+        },
+        "Binomial Tree": {
+            "methodology": "The Binomial Tree model breaks down the time to expiration into discrete intervals.",
+            "use_cases": "Flexible for pricing American and European options, and can handle dividends."
+        },
+        "Monte Carlo": {
+            "methodology": "The Monte Carlo simulation generates random price paths for the underlying asset.",
+            "use_cases": "Useful for pricing complex and path-dependent options."
+        },
+        "Heston": {
+            "methodology": "The Heston model is a stochastic volatility model, assuming volatility is not constant.",
+            "use_cases": "More realistic for pricing options where volatility fluctuates over time."
+        },
+        "Merton Jump": {
+            "methodology": "The Merton Jump-Diffusion model incorporates sudden, large price movements (jumps).",
+            "use_cases": "Suitable for pricing options on assets subject to sudden price shocks."
+        }
+    }
+
     st.sidebar.header("Option Parameters")
-    st.sidebar.markdown("""
-    Set the key parameters that define your option's characteristics.
-    """)
+    ticker = st.sidebar.text_input("Stock Ticker", "AAPL", key="option_ticker")
+    if st.sidebar.button("Fetch Market Data"):
+        with st.spinner("Fetching market data..."):
+            try:
+                price = data_provider.get_latest_stock_price(ticker)
+                if price:
+                    st.session_state.spot_price = price
+                volatility = volatility_engine.calculate_historical_volatility(ticker)
+                st.session_state.volatility = volatility
+                risk_free_rate = data_provider.get_risk_free_rate()
+                st.session_state.risk_free_rate = risk_free_rate
+            except Exception as e:
+                st.sidebar.error(f"Error fetching data: {e}")
+
+    pricing_model = st.sidebar.selectbox("Pricing Model", list(model_explanations.keys()))
     
-    # Input parameters with improved ranges and defaults
+    with st.expander("Model Explanation"):
+        explanation = model_explanations[pricing_model]
+        st.markdown(f"**Methodology:** {explanation['methodology']}")
+        if "formula" in explanation:
+            st.latex(explanation["formula"])
+        st.markdown(f"**Use Cases:** {explanation['use_cases']}")
+
     col1, col2 = st.sidebar.columns(2)
-    
-    with col1:
-        spot_price = st.number_input("Spot Price ($)", min_value=1.0, max_value=1000.0, value=100.0, step=1.0)
-        st.markdown(add_tooltip("ℹ️ Spot Price", "Current market price of the underlying asset"), unsafe_allow_html=True)
-        
-        strike_price = st.number_input("Strike Price ($)", min_value=1.0, max_value=1000.0, value=100.0, step=1.0)
-        st.markdown(add_tooltip("ℹ️ Strike Price", "Price at which the option can be exercised"), unsafe_allow_html=True)
-        
-        option_type = st.selectbox("Option Type", ["Call", "Put"])
-        st.markdown(add_tooltip("ℹ️ Option Type", "Call: Right to buy, Put: Right to sell"), unsafe_allow_html=True)
-    
-    with col2:
-        risk_free_rate = st.number_input("Risk-Free Rate (%)", min_value=0.0, max_value=20.0, value=5.0, step=0.1) / 100
-        st.markdown(add_tooltip("ℹ️ Risk-Free Rate", "Theoretical return of a risk-free investment"), unsafe_allow_html=True)
-        
-        volatility = st.number_input("Volatility (%)", min_value=0.1, max_value=100.0, value=20.0, step=0.5) / 100
-        st.markdown(add_tooltip("ℹ️ Volatility", "Measure of how much the asset price can change"), unsafe_allow_html=True)
-        
-        time_to_expiry = st.number_input("Time to Expiry (Years)", min_value=0.01, max_value=10.0, value=1.0, step=0.1)
-        st.markdown(add_tooltip("ℹ️ Time to Expiry", "Remaining time until the option expires"), unsafe_allow_html=True)
-    
-    # Simulation parameters
-    st.sidebar.header("Simulation Settings")
-    st.sidebar.markdown("Adjust computational parameters for pricing models")
-    
-    simulations = st.sidebar.slider("Number of Simulations", min_value=1000, max_value=100000, value=50000, step=1000)
-    st.sidebar.markdown(add_tooltip("ℹ️ Simulations", "More simulations increase pricing accuracy"), unsafe_allow_html=True)
-    
-    confidence_level = st.sidebar.slider("Confidence Level (%)", min_value=80, max_value=99, value=95, step=1) / 100
-    st.sidebar.markdown(add_tooltip("ℹ️ Confidence Level", "Statistical confidence for price estimation"), unsafe_allow_html=True)
-    
-    # Pricing button
+    spot_price = col1.number_input("Spot Price ($)", value=st.session_state.get('spot_price', 100.0))
+    strike_price = col2.number_input("Strike Price ($)", value=100.0)
+    option_type = col1.selectbox("Option Type", ["Call", "Put"])
+    time_to_expiry = col2.number_input("Time to Expiry (Years)", value=1.0)
+    risk_free_rate = col1.number_input("Risk-Free Rate (%)", value=st.session_state.get('risk_free_rate', 0.05) * 100) / 100
+    volatility = col2.number_input("Volatility (%)", value=st.session_state.get('volatility', 0.20) * 100) / 100
+
     if st.sidebar.button("Calculate Option Price", type="primary"):
-        # Initialize option pricing models
-        advanced_option = AdvancedOptionPricing(
-            spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type.lower()
-        )
-        
-        # Create columns for different pricing methods
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Pricing Results")
-            
-            # Black-Scholes Pricing
-            bs_price = advanced_option.price()
-            st.metric("Black-Scholes Price", f"${bs_price:.2f}")
-            st.markdown(add_tooltip("ℹ️ Black-Scholes", "Standard theoretical option pricing model"), unsafe_allow_html=True)
-            
-            # Monte Carlo Simulation
-            mc_results = advanced_option.monte_carlo_pricing(simulations=simulations, confidence_level=confidence_level)
-            st.markdown("#### Monte Carlo Simulation")
-            st.metric("Monte Carlo Price", f"${mc_results['price']:.2f}")
-            st.markdown(add_tooltip("ℹ️ Monte Carlo", "Price estimated through random sampling"), unsafe_allow_html=True)
-            
-            st.metric("Median Monte Carlo Price", f"${mc_results['median_price']:.2f}")
-            st.markdown(add_tooltip("ℹ️ Median Price", "Middle value of simulated option prices"), unsafe_allow_html=True)
-            
-            # Confidence Interval
-            st.markdown("**Monte Carlo Confidence Interval:**")
-            st.text(f"({mc_results['confidence_interval'][0]:.2f}, {mc_results['confidence_interval'][1]:.2f})")
-            st.markdown(add_tooltip("ℹ️ Confidence Interval", "Range likely containing the true option price"), unsafe_allow_html=True)
-            
-            st.metric("Standard Error", f"{mc_results['standard_error']:.4f}")
-            st.markdown(add_tooltip("ℹ️ Standard Error", "Measure of price estimation precision"), unsafe_allow_html=True)
-            # Simulation Details
-            st.markdown("#### Simulation Details")
-            st.metric("Drift", f"{mc_results['simulation_details']['drift']:.4f}")
-            st.markdown(add_tooltip("ℹ️ Drift", "Expected return of the underlying asset"), unsafe_allow_html=True)
-            
-            st.metric("Diffusion", f"{mc_results['simulation_details']['diffusion']:.4f}")
-            st.markdown(add_tooltip("ℹ️ Diffusion", "Measure of price volatility spread"), unsafe_allow_html=True)
-        
-        with col2:
-            st.subheader("Advanced Analysis")
-            
-            # Quasi-Monte Carlo Pricing
-            qmc_price = advanced_option.quasi_monte_carlo_pricing(simulations=simulations)
-            st.metric("Quasi-Monte Carlo Price", f"${qmc_price:.2f}")
-            st.markdown(add_tooltip("ℹ️ Quasi-Monte Carlo", "More precise sampling technique"), unsafe_allow_html=True)
-            
-            # Option Greeks with Expandable Sections
-            st.markdown("#### Option Greeks")
-            
-            # Simplified Greeks Explanations
-            greeks_explanations = {
-                'delta': {
-                    'name': 'Delta',
-                    'simple_explanation': 'How much the option price changes when the stock price moves',
-                    'detailed_explanation': 'Delta measures the rate of change in the option\'s price relative to changes in the underlying asset\'s price. It ranges from 0 to 1 for call options and -1 to 0 for put options.'
-                },
-                'gamma': {
-                    'name': 'Gamma',
-                    'simple_explanation': 'Rate of change in delta',
-                    'detailed_explanation': 'Gamma represents the curvature of the option\'s price change. It shows how quickly delta changes as the underlying asset\'s price moves.'
-                },
-                'theta': {
-                    'name': 'Theta',
-                    'simple_explanation': 'How much value the option loses each day',
-                    'detailed_explanation': 'Theta measures the rate of decline in the option\'s value over time, also known as time decay. It represents how much value an option loses as it approaches expiration.'
-                },
-                'vega': {
-                    'name': 'Vega',
-                    'simple_explanation': 'How option price changes with volatility',
-                    'detailed_explanation': 'Vega indicates how much an option\'s price might change when the volatility of the underlying asset changes. Higher vega means the option is more sensitive to volatility.'
-                },
-                'rho': {
-                    'name': 'Rho',
-                    'simple_explanation': 'How option price changes with interest rates',
-                    'detailed_explanation': 'Rho measures the sensitivity of the option\'s price to changes in the risk-free interest rate. It shows how much the option\'s value might change if interest rates shift.'
-                }
-            }
-            
-            # Calculate Greeks
-            greeks = advanced_option.calculate_greeks()
-            
-            # Create expandable sections for each Greek
-            for greek, value in greeks.items():
-                greek_info = greeks_explanations.get(greek, {})
-                
-                # Expandable section for each Greek, expanded by default
-                with st.expander(f"{greek_info.get('name', greek.capitalize())} Greek", expanded=True):
-                    col_a, col_b = st.columns(2)
+        option_price = None
+        greeks = None
+        try:
+            if pricing_model == "Black-Scholes":
+                option = BlackScholesOption(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type.lower())
+                option_price = option.price()
+                greeks = option.calculate_greeks()
+            # Add other models here
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+
+        if option_price is not None:
+            st.metric(f"{pricing_model} Price", f"${option_price:.4f}")
+        if greeks is not None:
+            st.subheader("Greeks Analysis")
+            st.json(greeks)
+
+def render_model_comparison_page(data_provider, volatility_engine):
+    st.header("Model Comparison")
+    st.markdown("Select multiple models to compare their option price calculations side-by-side.")
+
+    available_models = ["Black-Scholes", "Binomial Tree", "Monte Carlo", "Merton Jump"]
+    selected_models = st.multiselect("Select Models to Compare", options=available_models, default=["Black-Scholes", "Binomial Tree"])
+
+    st.sidebar.header("Advanced Model Parameters")
+    steps = st.sidebar.slider("Steps (Binomial Tree)", 50, 500, 100, 10)
+    simulations = st.sidebar.slider("Simulations (Monte Carlo)", 1000, 100000, 10000, 1000)
+    lambda_jump = st.sidebar.slider("Jump Intensity (λ)", 0.0, 2.0, 0.5, 0.1)
+    mu_jump = st.sidebar.slider("Avg. Jump Size (μ)", -0.5, 0.5, 0.0, 0.05)
+    sigma_jump = st.sidebar.slider("Jump Volatility (σ)", 0.0, 0.5, 0.1, 0.01)
+
+    if st.button("Compare Models", type="primary"):
+        results = []
+        with st.spinner("Running model comparisons..."):
+            # These parameters should be defined in the main app layout
+            spot_price = 100.0
+            strike_price = 100.0
+            risk_free_rate = 0.05
+            volatility = 0.20
+            time_to_expiry = 1.0
+            option_type = 'call'
+
+            for model_name in selected_models:
+                option_price = None
+                try:
+                    if model_name == "Black-Scholes":
+                        option = BlackScholesOption(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type)
+                        option_price = option.price()
+                    elif model_name == "Binomial Tree":
+                        option = BinomialTreeOption(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, steps, option_type)
+                        option_price = option.price()
+                    elif model_name == "Monte Carlo":
+                        option = AdvancedOptionPricing(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type)
+                        mc_results = option.monte_carlo_pricing(simulations=simulations)
+                        option_price = mc_results['price']
+                    elif model_name == "Merton Jump":
+                        option = MertonJumpModel(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, lambda_jump, mu_jump, sigma_jump, option_type)
+                        option_price = option.price()
                     
-                    with col_a:
-                        st.metric(f"{greek_info.get('name', greek.capitalize())} Value", f"{value:.4f}")
-                    
-                    with col_b:
-                        st.write("**Simple Explanation:**")
-                        st.write(greek_info.get('simple_explanation', 'Sensitivity measure'))
-                    
-                    st.write("**Detailed Explanation:**")
-                    st.write(greek_info.get('detailed_explanation', 'Additional details about this Greek'))
+                    if option_price is not None:
+                        results.append({"Model": model_name, "Option Price": option_price})
+                except Exception as e:
+                    st.error(f"Error running {model_name}: {e}")
         
-        # Model Accuracy Comparison
-        st.subheader("Model Accuracy Comparison")
-        add_explanation("Comparing different option pricing models")
-        
-        # Calculate accuracy metrics
-        accuracy_df = calculate_model_accuracy(
-            spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type.lower()
-        )
-        
-        # Create interactive Plotly bar chart for pricing comparison
-        fig_prices = go.Figure(data=[
-            go.Bar(
-                x=accuracy_df.index, 
-                y=accuracy_df['Price'], 
-                text=[f'${price:.2f}' for price in accuracy_df['Price']],
-                textposition='auto',
-                marker_color='rgba(58, 71, 80, 0.6)',
-                marker_line_color='rgba(58, 71, 80, 1.0)',
-                marker_line_width=1.5
-            )
-        ])
-        fig_prices.update_layout(
-            title='Option Pricing Comparison',
-            xaxis_title='Pricing Method',
-            yaxis_title='Option Price ($)',
-            template='plotly_white'
-        )
-        st.plotly_chart(fig_prices, use_container_width=True)
-        add_explanation("Visual comparison of prices from different models")
-        
-        # Create interactive Plotly bar chart for relative differences
-        fig_diff = go.Figure(data=[
-            go.Bar(
-                x=accuracy_df.index, 
-                y=accuracy_df['Relative Difference (%)'], 
-                text=[f'{diff:.2f}%' for diff in accuracy_df['Relative Difference (%)']],
-                textposition='auto',
-                marker_color='rgba(255, 64, 129, 0.6)',
-                marker_line_color='rgba(255, 64, 129, 1.0)',
-                marker_line_width=1.5
-            )
-        ])
-        fig_diff.update_layout(
-            title='Relative Difference from Black-Scholes',
-            xaxis_title='Pricing Method',
-            yaxis_title='Relative Difference (%)',
-            template='plotly_white'
-        )
-        st.plotly_chart(fig_diff, use_container_width=True)
-        add_explanation("Percentage difference between models compared to Black-Scholes")
+        if results:
+            st.subheader("Comparison Results")
+            results_df = pd.DataFrame(results)
+            st.dataframe(results_df.style.format({"Option Price": "${:.4f}"}), use_container_width=True)
+            
+            fig = px.bar(results_df, x="Model", y="Option Price", title="Model Price Comparison", color="Model", text_auto='.4f')
+            fig.update_layout(yaxis_title="Option Price ($)")
+            st.plotly_chart(fig, use_container_width=True)
+
+def render_portfolio_analysis_page(data_provider):
+    st.header("Portfolio Analysis")
+    st.markdown("Build and manage your investment portfolio, and analyze its risk profile.")
+
+    portfolio = st.session_state.portfolio
+
+    st.subheader("Add New Asset")
+    with st.form(key="add_asset_form"):
+        col1, col2, col3 = st.columns(3)
+        ticker = col1.text_input("Ticker Symbol", "AAPL")
+        quantity = col2.number_input("Quantity", min_value=0.01, value=10.0)
+        price = col3.number_input("Purchase Price", min_value=0.01, value=150.0)
+        submitted = st.form_submit_button("Add Asset")
+        if submitted:
+            portfolio.add_position(ticker, quantity, price)
+            st.success(f"Added {quantity} of {ticker} to the portfolio.")
+
+    st.subheader("Current Portfolio")
+    if not portfolio.positions:
+        st.info("Your portfolio is empty.")
+    else:
+        positions_df = pd.DataFrame([{"Symbol": symbol, "Quantity": pos['quantity'], "Price": f"${pos['price']:.2f}", "Total Value": f"${pos['quantity'] * pos['price']:.2f}"} for symbol, pos in portfolio.positions.items()])
+        st.dataframe(positions_df, use_container_width=True)
+        st.metric("Total Portfolio Value", f"${portfolio.get_total_value():,.2f}")
+
+    st.subheader("Risk Analysis")
+    if not portfolio.positions:
+        st.warning("Add assets to the portfolio to perform risk analysis.")
+    else:
+        risk_analysis_form = st.form("risk_analysis_form")
+        risk_analysis_form.subheader("Value at Risk (VaR) and CVaR")
+        var_confidence = risk_analysis_form.slider("Confidence Level", 0.90, 0.99, 0.95, 0.01)
+        var_horizon = risk_analysis_form.number_input("Time Horizon (Days)", 1, 30, 10)
+        num_simulations = risk_analysis_form.number_input("MC Simulations", 100, 10000, 1000)
+        run_var = risk_analysis_form.form_submit_button("Calculate VaR & CVaR")
+
+        if run_var:
+            with st.spinner("Running Monte Carlo simulation..."):
+                var_calculator = ValueAtRisk(portfolio, confidence_level=var_confidence)
+                pnl_dist = var_calculator.monte_carlo_simulation(num_simulations, var_horizon)
+                if pnl_dist.size > 0:
+                    var = var_calculator.get_var_from_pnl(pnl_dist)
+                    cvar = var_calculator.get_cvar_from_pnl(pnl_dist)
+                    st.metric("Value at Risk (VaR)", f"${var:,.2f}")
+                    st.metric("Conditional VaR (CVaR)", f"${cvar:,.2f}")
+                    fig = px.histogram(pnl_dist, nbins=50, title="Portfolio P&L Distribution")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("Could not run simulation.")
+def main():
+    """
+    Main function to run the Streamlit application.
+    This function sets up the page configuration, loads custom CSS,
+    initializes session state, and renders the appropriate page based on user selection.
+    """
+    st.title("📊 Option Pricing Model Dashboard")
+    st.markdown("Welcome to the advanced option pricing and risk analysis dashboard. "
+                "Select a tool from the sidebar to get started.")
+
+    # Initialize session state
+    if 'portfolio' not in st.session_state:
+        st.session_state.portfolio = Portfolio()
+    if 'api_key' not in st.session_state:
+        st.session_state.api_key = ""
+
+    # Sidebar for navigation and global settings
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Go to", ["Option Pricing", "Model Comparison", "Portfolio Analysis"])
+
+    st.sidebar.header("Global Parameters")
+    st.sidebar.subheader("API Configuration")
+    api_key = st.sidebar.text_input("Alpha Vantage API Key", type="password", value=st.session_state.api_key)
+    
+    if api_key:
+        st.session_state.api_key = api_key
+        try:
+            data_provider = FinancialDataAPI(api_key=api_key)
+            volatility_engine = VolatilityEngine(data_provider)
+            st.sidebar.success("API key accepted.")
+        except ValueError as e:
+            st.sidebar.error(e)
+            return
+    else:
+        st.sidebar.warning("Please enter your Alpha Vantage API key to fetch market data.")
+        return
+
+    # Page routing
+    if page == "Option Pricing":
+        render_option_pricing_page(data_provider, volatility_engine)
+    elif page == "Model Comparison":
+        render_model_comparison_page(data_provider, volatility_engine)
+    elif page == "Portfolio Analysis":
+        render_portfolio_analysis_page(data_provider)
+
 def add_footer():
     st.markdown("---")
     st.markdown("""
-    ### About This Tool
-    - **Option Pricing Model Dashboard** provides comprehensive option valuation techniques
-    - Uses Black-Scholes, Monte Carlo, and Quasi-Monte Carlo methods
-    - Compares accuracy of different pricing models
-    - Calculates option Greeks and provides detailed statistical analysis
-    """)
-    st.sidebar.markdown("---")
-    st.sidebar.info("""
-    **Created by:** [Kiet Vo](https://linkedin.com/in/kiet-vo-097)
-
-    Disclaimer - This is my first take on quant and option pricing. 
-    The model is far from having any real application. 
-    I am no expert in the financial and future market and still learning while doing.
+    **Disclaimer:** This tool is for educational purposes only. The calculated prices are based on mathematical models and may not reflect real market conditions.
     """)
 
 if __name__ == "__main__":

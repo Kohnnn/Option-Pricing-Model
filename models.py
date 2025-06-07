@@ -2,31 +2,10 @@ import numpy as np
 from scipy.stats import norm
 from scipy.stats import t
 import warnings
+from base_model import BaseOptionModel
+from utils import validate_option_parameters
 
-def validate_option_parameters(spot_price, strike_price, risk_free_rate, volatility, time_to_expiry):
-    """
-    Validate input parameters for option pricing
-    
-    Args:
-        spot_price (float): Current stock price
-        strike_price (float): Option strike price
-        risk_free_rate (float): Risk-free interest rate
-        volatility (float): Stock price volatility
-        time_to_expiry (float): Time to option expiration
-    
-    Raises:
-        ValueError: If any of the input parameters are invalid
-    """
-    if spot_price <= 0:
-        raise ValueError("Spot price must be positive")
-    if strike_price <= 0:
-        raise ValueError("Strike price must be positive")
-    if time_to_expiry <= 0:
-        raise ValueError("Time to expiry must be positive")
-    if volatility < 0:
-        raise ValueError("Volatility cannot be negative")
-
-class BlackScholesOption:
+class BlackScholesOption(BaseOptionModel):
     def __init__(self, spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, option_type='call'):
         """
         Initialize Black-Scholes Option Pricing Model
@@ -73,13 +52,13 @@ class BlackScholesOption:
         d1, d2 = self._calculate_d1_d2()
         
         if self.option_type == 'call':
-            return (self.spot_price * cumulative_normal_distribution(d1) - 
-                    self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * 
-                    cumulative_normal_distribution(d2))
+            return (self.spot_price * norm.cdf(d1) -
+                    self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) *
+                    norm.cdf(d2))
         elif self.option_type == 'put':
-            return (self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * 
-                    cumulative_normal_distribution(-d2) - 
-                    self.spot_price * cumulative_normal_distribution(-d1))
+            return (self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) *
+                    norm.cdf(-d2) -
+                    self.spot_price * norm.cdf(-d1))
         else:
             raise ValueError("Option type must be 'call' or 'put'")
     
@@ -93,9 +72,9 @@ class BlackScholesOption:
         d1, _ = self._calculate_d1_d2()
         
         if self.option_type == 'call':
-            return cumulative_normal_distribution(d1)
+            return norm.cdf(d1)
         elif self.option_type == 'put':
-            return cumulative_normal_distribution(d1) - 1
+            return norm.cdf(d1) - 1
     
     def gamma(self):
         """
@@ -106,7 +85,7 @@ class BlackScholesOption:
         """
         d1, _ = self._calculate_d1_d2()
         
-        return standard_normal_distribution(d1) / (self.spot_price * self.volatility * 
+        return norm.pdf(d1) / (self.spot_price * self.volatility *
                                                    np.sqrt(self.time_to_expiry))
     
     def vega(self):
@@ -118,7 +97,7 @@ class BlackScholesOption:
         """
         d1, _ = self._calculate_d1_d2()
         
-        return self.spot_price * standard_normal_distribution(d1) * np.sqrt(self.time_to_expiry)
+        return self.spot_price * norm.pdf(d1) * np.sqrt(self.time_to_expiry)
     
     def theta(self):
         """
@@ -130,15 +109,15 @@ class BlackScholesOption:
         d1, d2 = self._calculate_d1_d2()
         
         if self.option_type == 'call':
-            theta = (-self.spot_price * standard_normal_distribution(d1) * self.volatility / 
-                     (2 * np.sqrt(self.time_to_expiry)) - 
-                     self.risk_free_rate * self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * 
-                     cumulative_normal_distribution(d2))
+            theta = (-self.spot_price * norm.pdf(d1) * self.volatility /
+                     (2 * np.sqrt(self.time_to_expiry)) -
+                     self.risk_free_rate * self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) *
+                     norm.cdf(d2))
         elif self.option_type == 'put':
-            theta = (-self.spot_price * standard_normal_distribution(d1) * self.volatility / 
-                     (2 * np.sqrt(self.time_to_expiry)) + 
-                     self.risk_free_rate * self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * 
-                     cumulative_normal_distribution(-d2))
+            theta = (-self.spot_price * norm.pdf(d1) * self.volatility /
+                     (2 * np.sqrt(self.time_to_expiry)) +
+                     self.risk_free_rate * self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) *
+                     norm.cdf(-d2))
         
         return theta
     
@@ -182,6 +161,20 @@ class BlackScholesOption:
             volatility -= price_diff / vega
         
         raise ValueError("Implied volatility calculation did not converge")
+
+    def calculate_greeks(self):
+        """
+        Calculate all option Greeks
+        
+        Returns:
+            dict: A dictionary containing delta, gamma, vega, and theta
+        """
+        return {
+            'delta': self.delta(),
+            'gamma': self.gamma(),
+            'vega': self.vega(),
+            'theta': self.theta()
+        }
 
     def scenario_analysis(self, spot_price_range=None, volatility_range=None):
         """
@@ -233,7 +226,7 @@ class BlackScholesOption:
         
         return results
 
-class BinomialTreeOption:
+class BinomialTreeOption(BaseOptionModel):
     def __init__(self, spot_price, strike_price, risk_free_rate, volatility, time_to_expiry, steps=100, option_type='call'):
         """
         Initialize Binomial Tree Option Pricing Model
@@ -295,7 +288,22 @@ class BinomialTreeOption:
         
         return option_values[0, 0]
 
-class AdvancedOptionPricing:
+    def calculate_greeks(self):
+        """
+        Greeks are not analytically available for the Binomial Tree model.
+        This method is implemented to satisfy the BaseOptionModel interface.
+        
+        Returns:
+            dict: A dictionary with None values for all Greeks.
+        """
+        return {
+            'delta': None,
+            'gamma': None,
+            'vega': None,
+            'theta': None
+        }
+
+class AdvancedOptionPricing(BaseOptionModel):
     """
     Advanced Option Pricing Models with Enhanced Risk Analysis and Simulation Techniques
     """
@@ -396,7 +404,8 @@ class AdvancedOptionPricing:
         )
         
         # Analytical Black-Scholes price for comparison
-        bs_price = self.price()
+        bs_option = BlackScholesOption(self.spot_price, self.strike_price, self.risk_free_rate, self.volatility, self.time_to_expiry, self.option_type)
+        bs_price = bs_option.price()
         
         return {
             'price': option_price_mean,
@@ -485,23 +494,16 @@ class AdvancedOptionPricing:
         
         return d1, d2
     
-    def price(self):
+    def price(self, **kwargs):
         """
-        Calculate option price using Black-Scholes method
+        Calculate option price using the most appropriate method.
+        For this advanced model, it defaults to Monte Carlo simulation.
         
         Returns:
             float: Option price
         """
-        d1, d2 = self._calculate_d1_d2()
-        
-        if self.option_type == 'call':
-            call_price = (self.spot_price * norm.cdf(d1) - 
-                          self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * norm.cdf(d2))
-            return call_price
-        else:
-            put_price = (self.strike_price * np.exp(-self.risk_free_rate * self.time_to_expiry) * norm.cdf(-d2) - 
-                         self.spot_price * norm.cdf(-d1))
-            return put_price
+        # Forward any arguments to the monte_carlo_pricing method
+        return self.monte_carlo_pricing(**kwargs)['price']
     
     def calculate_greeks(self):
         """
