@@ -60,7 +60,10 @@ class FinancialDataAPI:
         response = requests.get(self.base_url, params=params)
         response.raise_for_status()
         data = response.json()
-        
+
+        if "Error Message" in data:
+            raise ValueError(f"API Error: {data['Error Message']}")
+
         time_series = data.get("Time Series (Daily)", {})
         results = []
         for date, values in time_series.items():

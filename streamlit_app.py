@@ -301,10 +301,14 @@ def main():
         st.session_state.api_key = api_key
         try:
             data_provider = FinancialDataAPI(api_key=api_key)
+            # Perform a quick check to validate the API key
+            if data_provider.get_latest_stock_price("IBM") is None:
+                st.sidebar.error("Invalid API key or no data for test ticker.")
+                return
             volatility_engine = VolatilityEngine(data_provider)
-            st.sidebar.success("API key accepted.")
-        except ValueError as e:
-            st.sidebar.error(e)
+            st.sidebar.success("API key is valid.")
+        except (ValueError, IOError) as e:
+            st.sidebar.error(f"API Error: {e}")
             return
     else:
         st.sidebar.warning("Please enter your Alpha Vantage API key to fetch market data.")
