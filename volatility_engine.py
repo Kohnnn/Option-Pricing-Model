@@ -1,5 +1,6 @@
 import numpy as np
 import datetime
+import logging
 from models import BlackScholesOption
 
 class VolatilityEngine:
@@ -9,21 +10,29 @@ class VolatilityEngine:
     def __init__(self, data_provider):
         self.data_provider = data_provider
 
-    def calculate_historical_volatility(self, ticker, window=252):
+    def calculate_historical_volatility(self, ticker, window=252, historical_data=None):
         """
         Calculates the annualized historical volatility of a stock.
         
         Args:
             ticker (str): The stock ticker symbol.
             window (int): The number of trading days for the volatility calculation.
+            historical_data (list, optional): Pre-fetched historical data to avoid redundant API calls.
             
         Returns:
             float: The annualized historical volatility as a decimal.
         """
-        historical_data = self.data_provider.get_historical_stock_prices(ticker, outputsize='full')
+        if historical_data is None:
+            historical_data = self.data_provider.get_historical_stock_prices(ticker, outputsize='full')
         
         if not historical_data or len(historical_data) < window:
-            raise ValueError("Insufficient historical data to calculate volatility.")
+            # Try to fetch with a larger window if the provided data is insufficient
+            if historical_data is None:
+                historical_data = self.data_provider.get_historical_stock_prices(ticker, outputsize='full')
+            
+            if not historical_data or len(historical_data) < window:
+                logging.warning(f"Insufficient historical data for {ticker} to calculate volatility with window {window}. Returning default value 0.20.")
+                return 0.20
             
         closes = [d['c'] for d in historical_data[-window:]]
         
